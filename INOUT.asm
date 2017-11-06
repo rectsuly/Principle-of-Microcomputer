@@ -1,0 +1,132 @@
+EOF=065
+DATA SEGMENT
+    INTXT DB 'IN.TXT',0
+    OUTTXT DB 'OUT.TXT',0
+    INHANDLE DW 0000H
+    OUTHANDLE DW 0000H
+    ERROR1 DB 'File not found',07h,0
+    ERROR2 DB 'error',07H,0
+    BUFFER DB 0
+DATA ENDS
+
+CODE SEGMENT
+    ASSUME CS:CODE,DS:DATA
+START:
+    MOV AX,DATA
+    MOV DS,AX
+    
+    CALL INPUTCH
+    CMP AL,'S'  ;输入的字符是's'，则开始运行程序
+    JZ OPEN
+    JMP OVER
+    
+    ;打开输入文件
+OPEN:
+    MOV DX,OFFSET INTXT
+    MOV AX,3D00H
+    INT 21H
+    JNC OPENIN_OK   ;打开成功，则跳转
+    MOV SI,OFFSET ERROR1    ;打开不成功则提示信息
+    CALL DMESS
+    JMP OVER
+OPENIN_OK:
+    MOV INHANDLE,AX
+    ;打开输出文件
+    MOV DX,OFFSET OUTTXT
+    MOV AX,3D01H
+    INT 21H
+    JNC OPENOUT_OK  ;打开成功，则跳转
+    MOV SI,OFFSET ERROR1    ;打开不成功则提示信息
+    CALL DMESS
+    JMP OVER
+OPENOUT_OK: MOV OUTHANDLE,AX
+
+CONT:CALL READCH    ;从文件中读一个字符
+    JC ERR  ;如出错，则跳转
+    CMP AL,EOF  ;读到文件结束符吗？
+    JZ TYPE_OK  ;是，则跳转
+    CALL WRITECH    ;否，则写入所读字符
+    JC ERR  ;如出错，则跳转
+    JMP CONT    ;继续读字符
+ERR:MOV SI,OFFSET ERROR2
+    CALL DMESS  ;不成功则提示信息
+
+TYPE_OK:
+    ;关闭输入文件
+    MOV BX,INHANDLE
+    MOV AX,3EH  ;关闭文件
+    INT 21H
+    ;关闭输出文件
+    MOV BX,INHANDLE
+    MOV AH,3EH  ;关闭文件
+    INT 21H
+OVER:
+    MOV AH,4CH
+    INT 21H
+    
+;读字符子程序
+READCH PROC
+    MOV BX,INHANDLE
+    MOV CX,1
+    MOV DX,OFFSET BUFFER
+    MOV AH,3FH
+    INT 21H
+    JC READCH2
+    CMP AX,CX
+    MOV AL,EOF
+    JB READCH1
+    MOV AL,BUFFER
+READCH1:CLC
+READCH2:RET
+READCH ENDP
+
+;写字符子程序
+WRITECH PROC
+    MOV BX,OUTHANDLE
+    MOV CX,1
+    MOV DX,OFFSET BUFFER
+    MOV AH,40H
+    INT 21H
+    JC WRITECH2
+    CMP AX,CX
+    MOV AL,EOF
+    JB WRITECH1
+    MOV AL,BUFFER
+WRITECH1:CLC
+WRITECH2:RET
+WRITECH ENDP
+
+DMESS PROC  ;打印字符串子程序
+DMESS1:  
+MOV DI,[SI]
+    INC SI
+    OR DL,DL
+    JZ DMESS2
+    MOV AH,2
+    INT 21H
+    JMP DMESS1
+DMESS2:RET
+DMESS ENDP
+
+;打印字符子程序
+PUTCH PROC
+    PUSH DX
+    MOV DL,AL
+    MOV AH,2
+    INT 21H
+    POP DX
+    RET
+PUTCH ENDP
+
+;键盘输入字符子程序
+INPUTCH PROC
+    PUSH DX
+    MOV AH,01H
+    INT 21H
+    POP DX
+    RET
+INPUTCH ENDP
+
+CODE ENDS
+    END START
+    
